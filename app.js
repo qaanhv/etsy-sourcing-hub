@@ -12,7 +12,7 @@
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyBAfRxTe1PkfcI0hXGEXRECHqsJhhlCo9Y",
   authDomain: "etsyy-1dbcd.firebaseapp.com",
-  projectId: "etsyy-1dbcd"",
+  projectId: "etsyy-1dbcd",
   storageBucket: "etsyy-1dbcd.firebasestorage.app",
   messagingSenderId: "339797462821",
   appId: "1:339797462821:web:8a5f0a1b041ecbad4154cc",
