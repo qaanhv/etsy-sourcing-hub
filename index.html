@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<!-- ⚠️  Before deploying: fill in your Firebase config in app.js (search for FIREBASE_CONFIG) -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Etsy Database</title>
+  <meta name="description" content="Track your Etsy dropshipping products and suppliers">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ================================================================
+     LOGIN
+================================================================ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="brand-icon-lg">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+          <rect width="22" height="22" rx="5" fill="white"/>
+          <path d="M4 7.5h14M4 11h14M4 14.5h14M8.5 4v14" stroke="#0C0C0C" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h1 class="login-app-name">Etsy Database</h1>
+    </div>
+    <p class="login-desc">Enter your workspace password to continue.</p>
+    <form id="login-form" novalidate>
+      <div class="form-field">
+        <input type="password" id="login-password" placeholder="Workspace password" autocomplete="current-password">
+      </div>
+      <p id="login-error" class="error-msg hidden">Incorrect password. Try again.</p>
+      <button type="submit" class="btn-blk full-w" id="login-btn">Unlock Workspace</button>
+    </form>
+  </div>
+</div>
+
+<!-- ================================================================
+     APP
+================================================================ -->
+<div id="app" class="hidden">
+
+  <header class="app-header">
+
+    <!-- Brand -->
+    <div class="header-brand">
+      <div class="brand-icon-sm">
+        <svg width="16" height="16" viewBox="0 0 22 22" fill="none">
+          <rect width="22" height="22" rx="4" fill="#0C0C0C"/>
+          <path d="M4 7.5h14M4 11h14M4 14.5h14M8.5 4v14" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <span class="app-name">Etsy Database</span>
+      <button id="todo-btn" class="btn-icon-raw" title="Business notes">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Search -->
+    <div class="header-search">
+      <div class="search-wrap" id="search-wrap">
+        <svg class="search-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input type="text" id="search-input" placeholder="Search products or tags…" autocomplete="off" spellcheck="false">
+        <button id="search-clear" class="btn-icon-raw search-clear hidden" aria-label="Clear search">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="header-actions">
+      <button id="archive-btn" class="btn-ghost-sm" title="View archived">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>
+        </svg>
+        <span id="archive-label">Archived</span>
+      </button>
+      <button id="add-btn" class="btn-blk">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Add Product
+      </button>
+      <button id="logout-btn" class="btn-icon-sm" title="Log out">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+      </button>
+    </div>
+
+  </header>
+
+  <!-- Content -->
+  <div class="app-content">
+
+    <!-- Toolbar: filter + chips + count -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+
+        <!-- Filter dropdown anchor -->
+        <div class="dropdown-anchor" id="filter-anchor">
+          <button id="filter-btn" class="btn-filter">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+            </svg>
+            Filter tags
+            <span id="filter-badge" class="filter-badge hidden">0</span>
+            <svg id="filter-chevron" class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <div id="filter-menu" class="filter-menu hidden">
+            <div id="filter-menu-list" class="filter-menu-list"></div>
+            <div class="filter-menu-foot">
+              <button id="filter-clear-btn" class="filter-clear-btn">Clear all filters</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active filter chips -->
+        <div id="active-chips" class="active-chips"></div>
+
+      </div>
+      <span id="result-count" class="result-count"></span>
+    </div>
+
+    <!-- Product grid -->
+    <main id="product-grid" class="product-grid" role="main" aria-label="Products"></main>
+
+  </div>
+</div>
+
+<!-- ================================================================
+     TODO PANEL (Business Notes)
+================================================================ -->
+<div id="todo-panel" class="todo-panel" aria-label="Business notes">
+  <div class="todo-panel-head">
+    <div class="todo-panel-title">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+      </svg>
+      Business Notes
+    </div>
+    <button id="todo-close-btn" class="btn-icon-sm" aria-label="Close">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+  <div class="todo-add-wrap">
+    <input type="text" id="todo-input" placeholder="Add a task… press Enter to save" autocomplete="off">
+  </div>
+  <div id="todo-list" class="todo-list"></div>
+</div>
+
+<!-- ================================================================
+     ADD / EDIT PRODUCT MODAL
+================================================================ -->
+<div id="product-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="pm-title">
+  <div class="modal-box">
+    <div class="modal-hd">
+      <h2 id="pm-title" class="modal-title">Add Product</h2>
+      <button class="btn-icon-sm modal-x" id="pm-close" aria-label="Close">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <form id="product-form" novalidate>
+      <div class="form-bd">
+
+        <div class="form-field">
+          <label for="pm-url">Etsy URL</label>
+          <div class="input-row">
+            <input type="url" id="pm-url" placeholder="https://www.etsy.com/listing/...">
+            <button type="button" id="pm-extract-btn" class="btn-outline-sm">Extract name</button>
+          </div>
+          <p id="pm-url-status" class="hint hidden"></p>
+        </div>
+
+        <div class="form-field">
+          <label for="pm-name">Product Name <span class="req">*</span></label>
+          <input type="text" id="pm-name" placeholder="e.g. Custom Wooden Wedding Ceremony Round">
+        </div>
+
+        <div class="form-field">
+          <label for="pm-image">Image URL</label>
+          <input type="url" id="pm-image" placeholder="https://...">
+          <div id="pm-img-preview" class="img-preview"></div>
+        </div>
+
+        <div class="form-field">
+          <label>Tags</label>
+          <div id="pm-tags"></div>
+          <p class="hint">Press <kbd>Enter</kbd> or <kbd>,</kbd> to add · <kbd>Backspace</kbd> removes last</p>
+        </div>
+
+      </div>
+      <div class="modal-ft">
+        <button type="button" id="pm-cancel" class="btn-outline">Cancel</button>
+        <button type="submit" id="pm-save" class="btn-blk">Save Product</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================================================================
+     PRODUCT DETAIL MODAL (Supplier Table)
+================================================================ -->
+<div id="detail-modal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-box modal-wide">
+    <div class="modal-hd">
+      <div class="detail-hd-left">
+        <div id="detail-img" class="detail-thumb"></div>
+        <div class="detail-info">
+          <h2 id="detail-name" class="detail-name"></h2>
+          <div id="detail-tags" class="detail-tags-row"></div>
+          <div id="detail-link"></div>
+        </div>
+      </div>
+      <button class="btn-icon-sm modal-x" id="detail-close" aria-label="Close">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-bd">
+      <div class="supplier-hd">
+        <div class="supplier-hd-left">
+          <h3>Suppliers</h3>
+          <span id="supplier-badge" class="count-badge"></span>
+        </div>
+        <p class="table-hint">Click to edit · Double-click header to rename · <kbd>Tab</kbd> / <kbd>Enter</kbd> to move</p>
+      </div>
+      <div id="supplier-container"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     CONFIRM DIALOG
+================================================================ -->
+<div id="confirm-dialog" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-box modal-sm">
+    <div class="confirm-inner">
+      <p id="confirm-msg" class="confirm-msg"></p>
+      <div class="confirm-actions">
+        <button id="confirm-cancel" class="btn-outline">Cancel</button>
+        <button id="confirm-ok" class="btn-danger">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DB connecting overlay -->
+<div id="db-loading" class="db-loading hidden">
+  <div class="db-spinner"></div>
+  <p class="db-loading-txt">Connecting to database…</p>
+</div>
+
+<!-- Firebase SDK (compat v10) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<!-- App -->
+<script src="app.js"></script>
+</body>
+</html>
