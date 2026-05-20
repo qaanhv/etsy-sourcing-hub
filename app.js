@@ -100,25 +100,20 @@ let filterMenuOpen = false;
    FIRESTORE — LISTENERS
 ================================================================ */
 function startListeners() {
-  showDbLoading(true);
-
   _unsubProducts = db.collection('products')
     .orderBy('createdAt', 'desc')
     .onSnapshot(snap => {
       state.products = snap.docs.map(d => d.data());
       renderApp();
-      // Refresh detail modal if open and no cell is actively being edited
       if (state.detailId && !document.getElementById('detail-modal').classList.contains('hidden')) {
         if (!document.querySelector('.t-cell.editing')) {
           const updated = state.products.find(p => p.id === state.detailId);
           if (updated) renderDetailContent(updated);
         }
       }
-      showDbLoading(false);
     }, err => {
       console.error('Firestore products error:', err);
-      showDbLoading(false);
-      renderApp(); // Still render (empty) so UI isn't stuck blank
+      renderApp();
       showFsError(err);
     });
 
