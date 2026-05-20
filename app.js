@@ -9,13 +9,14 @@
    4. Replace EVERY "REPLACE_..." value with your actual values
    5. Commit & push → Vercel auto-deploys
 ================================================================ */
-const FIREBASE_CONFIG = {
-  apiKey:            "REPLACE_API_KEY",
-  authDomain:        "REPLACE_PROJECT_ID.firebaseapp.com",
-  projectId:         "REPLACE_PROJECT_ID",
-  storageBucket:     "REPLACE_PROJECT_ID.appspot.com",
-  messagingSenderId: "REPLACE_MESSAGING_SENDER_ID",
-  appId:             "REPLACE_APP_ID",
+const firebaseConfig = {
+  apiKey: "AIzaSyBAfRxTe1PkfcI0hXGEXRECHqsJhhlCo9Y",
+  authDomain: "etsyy-1dbcd.firebaseapp.com",
+  projectId: "etsyy-1dbcd",
+  storageBucket: "etsyy-1dbcd.firebasestorage.app",
+  messagingSenderId: "339797462821",
+  appId: "1:339797462821:web:8a5f0a1b041ecbad4154cc",
+  measurementId: "G-1NR81YWXY0"
 };
 
 /* ================================================================
