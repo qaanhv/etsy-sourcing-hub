@@ -26,13 +26,37 @@ const PASSWORD     = 'etsy123';
 const DEFAULT_COLS = ['Supplier Name', 'Website', 'Price', 'MOQ', 'Contacted', 'Notes'];
 
 /* ================================================================
-   FIREBASE INIT
+   FIREBASE INIT (lazy — called only after login)
 ================================================================ */
-const _app = firebase.initializeApp(FIREBASE_CONFIG);
-const db   = firebase.firestore();
+let db                  = null;
+let _firebaseReady      = false;
+let _unsubProducts      = null;
+let _unsubTodos         = null;
 
-let _unsubProducts = null;
-let _unsubTodos    = null;
+function initFirebase() {
+  if (_firebaseReady) return true;
+  try {
+    if (FIREBASE_CONFIG.apiKey === 'REPLACE_API_KEY') {
+      showFirebaseError();
+      return false;
+    }
+    // Avoid duplicate app if hot-reloaded
+    const existing = firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
+    db = existing.firestore();
+    _firebaseReady = true;
+    return true;
+  } catch (err) {
+    console.error('Firebase init failed:', err);
+    showFirebaseError(err.message);
+    return false;
+  }
+}
+
+function showFirebaseError(detail) {
+  document.getElementById('login-error').textContent =
+    'Firebase not configured yet. Open app.js and fill in your FIREBASE_CONFIG values.';
+  document.getElementById('login-error').classList.remove('hidden');
+}
 
 /* ================================================================
    STATE
@@ -207,6 +231,13 @@ function showView(view) {
   document.getElementById('login-screen').classList.toggle('hidden', view !== 'login');
   document.getElementById('app').classList.toggle('hidden', view !== 'app');
   if (view === 'app') {
+    if (!initFirebase()) {
+      // Firebase not ready — stay on login screen
+      sessionStorage.removeItem('etsy_db_auth');
+      document.getElementById('login-screen').classList.remove('hidden');
+      document.getElementById('app').classList.add('hidden');
+      return;
+    }
     startListeners();
   }
 }
@@ -794,10 +825,7 @@ async function addTodo(text) {
   return true;
 }
 
-/* ================================================================
-   AUTH
-================================================================ */
-function isAuthed() { return sessionStorage.getItem('etsy_db_auth') === '1'; }
+
 
 /* ================================================================
    BOOTSTRAP
