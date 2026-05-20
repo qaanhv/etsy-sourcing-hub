@@ -61,6 +61,26 @@ function showFirebaseError(detail) {
   document.getElementById('login-error').classList.remove('hidden');
 }
 
+function showFsError(err) {
+  // Show a visible banner inside the app explaining Firestore issues
+  const code = err?.code || '';
+  let msg = '⚠️ Could not connect to the database.';
+  if (code === 'permission-denied')  msg = '⚠️ Firestore permission denied. In Firebase Console → Firestore → Rules, set: allow read, write: if true;';
+  else if (code === 'not-found')     msg = '⚠️ Firestore database not found. Go to Firebase Console → Build → Firestore Database → Create database.';
+  else if (code.includes('unavailable') || code.includes('network')) msg = '⚠️ Network error — check your internet connection.';
+  else msg += ' Error: ' + (err?.message || code);
+
+  let banner = document.getElementById('fs-error-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'fs-error-banner';
+    banner.style.cssText = 'background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:10px 14px;margin:16px;font-size:13px;line-height:1.5;color:#664d03;';
+    document.getElementById('product-grid')?.before(banner);
+  }
+  banner.textContent = msg;
+  banner.style.display = 'block';
+}
+
 /* ================================================================
    STATE
 ================================================================ */
@@ -98,6 +118,8 @@ function startListeners() {
     }, err => {
       console.error('Firestore products error:', err);
       showDbLoading(false);
+      renderApp(); // Still render (empty) so UI isn't stuck blank
+      showFsError(err);
     });
 
   _unsubTodos = db.collection('todos')
@@ -241,7 +263,9 @@ function showView(view) {
       document.getElementById('app').classList.add('hidden');
       return;
     }
-    startListeners();
+    renderApp();      // Render immediately (empty state) while Firestore loads
+    renderTodoList();
+    startListeners(); // Firestore will re-render when data arrives
   }
 }
 
