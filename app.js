@@ -9,7 +9,7 @@
    4. Replace EVERY "REPLACE_..." value with your actual values
    5. Commit & push → Vercel auto-deploys
 ================================================================ */
-const firebaseConfig = {
+const FIREBASE_CONFIG = {
   apiKey: "AIza...",
   authDomain: "etsy-db-xxxx.firebaseapp.com",
   projectId: "etsy-db-xxxx",
@@ -35,11 +35,15 @@ let _unsubTodos         = null;
 function initFirebase() {
   if (_firebaseReady) return true;
   try {
-    if (FIREBASE_CONFIG.apiKey === 'REPLACE_API_KEY') {
+    const isPlaceholder =
+      FIREBASE_CONFIG.apiKey === 'REPLACE_API_KEY' ||
+      FIREBASE_CONFIG.apiKey === 'AIza...' ||
+      FIREBASE_CONFIG.projectId === 'etsy-db-xxxx' ||
+      FIREBASE_CONFIG.projectId === 'REPLACE_PROJECT_ID';
+    if (isPlaceholder) {
       showFirebaseError();
       return false;
     }
-    // Avoid duplicate app if hot-reloaded
     const existing = firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
     db = existing.firestore();
     _firebaseReady = true;
