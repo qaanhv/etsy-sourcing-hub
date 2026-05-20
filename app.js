@@ -10,13 +10,12 @@
    5. Commit & push → Vercel auto-deploys
 ================================================================ */
 const firebaseConfig = {
-  apiKey: "AIzaSyBAfRxTe1PkfcI0hXGEXRECHqsJhhlCo9Y",
-  authDomain: "etsyy-1dbcd.firebaseapp.com",
-  projectId: "etsyy-1dbcd",
-  storageBucket: "etsyy-1dbcd.firebasestorage.app",
-  messagingSenderId: "339797462821",
-  appId: "1:339797462821:web:8a5f0a1b041ecbad4154cc",
-  measurementId: "G-1NR81YWXY0"
+  apiKey: "AIza...",
+  authDomain: "etsy-db-xxxx.firebaseapp.com",
+  projectId: "etsy-db-xxxx",
+  storageBucket: "etsy-db-xxxx.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123...",
 };
 
 /* ================================================================
