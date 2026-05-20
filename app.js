@@ -859,8 +859,8 @@ async function addTodo(text) {
 ================================================================ */
 document.addEventListener('DOMContentLoaded', () => {
 
-  if (isAuthed()) showView('app');
-  else            showView('login');
+  // No password required — go straight to app
+  showView('app');
 
   // ── Login ──
   document.getElementById('login-form').addEventListener('submit', e => {
