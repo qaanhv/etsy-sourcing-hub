@@ -206,6 +206,11 @@
           <p class="hint">Press <kbd>Enter</kbd> or <kbd>,</kbd> to add · <kbd>Backspace</kbd> removes last</p>
         </div>
 
+        <div class="form-field">
+          <label for="pm-notes">Notes <span class="req">(optional)</span></label>
+          <textarea id="pm-notes" placeholder="Any notes about this product — sourcing ideas, potential issues, profit margin thoughts…" rows="3"></textarea>
+        </div>
+
       </div>
       <div class="modal-ft">
         <button type="button" id="pm-cancel" class="btn-outline">Cancel</button>
@@ -236,6 +241,15 @@
       </button>
     </div>
     <div class="modal-bd">
+      <!-- Notes section (hidden when empty) -->
+      <div id="detail-notes-section" class="detail-notes hidden">
+        <div class="detail-notes-label">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+          Notes
+        </div>
+        <p id="detail-notes-text" class="detail-notes-text"></p>
+      </div>
+
       <div class="supplier-hd">
         <div class="supplier-hd-left">
           <h3>Suppliers</h3>

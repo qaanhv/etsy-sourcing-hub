@@ -1,12 +1,37 @@
 'use strict';
 
 /* ================================================================
+   FIREBASE CONFIG
+   ─────────────────────────────────────────────────────────────────
+   1. Go to https://console.firebase.google.com
+   2. Create a project → Add a web app → copy the config below
+   3. In Firestore Database → Create database (Start in test mode)
+   4. Replace EVERY "REPLACE_..." value with your actual values
+   5. Commit & push → Vercel auto-deploys
+================================================================ */
+const FIREBASE_CONFIG = {
+  apiKey:            "REPLACE_API_KEY",
+  authDomain:        "REPLACE_PROJECT_ID.firebaseapp.com",
+  projectId:         "REPLACE_PROJECT_ID",
+  storageBucket:     "REPLACE_PROJECT_ID.appspot.com",
+  messagingSenderId: "REPLACE_MESSAGING_SENDER_ID",
+  appId:             "REPLACE_APP_ID",
+};
+
+/* ================================================================
    CONSTANTS
 ================================================================ */
-const PASSWORD    = 'etsy123';
-const STORAGE_KEY = 'etsy_db_v1';
-const TODO_KEY    = 'etsy_db_todos_v1';
+const PASSWORD     = 'etsy123';
 const DEFAULT_COLS = ['Supplier Name', 'Website', 'Price', 'MOQ', 'Contacted', 'Notes'];
+
+/* ================================================================
+   FIREBASE INIT
+================================================================ */
+const _app = firebase.initializeApp(FIREBASE_CONFIG);
+const db   = firebase.firestore();
+
+let _unsubProducts = null;
+let _unsubTodos    = null;
 
 /* ================================================================
    STATE
@@ -24,22 +49,78 @@ let todos          = [];
 let filterMenuOpen = false;
 
 /* ================================================================
-   PERSISTENCE
+   FIRESTORE — LISTENERS
 ================================================================ */
-function loadData() {
-  try { state.products = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
-  catch { state.products = []; }
-}
-function saveData() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.products));
+function startListeners() {
+  showDbLoading(true);
+
+  _unsubProducts = db.collection('products')
+    .orderBy('createdAt', 'desc')
+    .onSnapshot(snap => {
+      state.products = snap.docs.map(d => d.data());
+      renderApp();
+      // Refresh detail modal if open and no cell is actively being edited
+      if (state.detailId && !document.getElementById('detail-modal').classList.contains('hidden')) {
+        if (!document.querySelector('.t-cell.editing')) {
+          const updated = state.products.find(p => p.id === state.detailId);
+          if (updated) renderDetailContent(updated);
+        }
+      }
+      showDbLoading(false);
+    }, err => {
+      console.error('Firestore products error:', err);
+      showDbLoading(false);
+    });
+
+  _unsubTodos = db.collection('todos')
+    .orderBy('createdAt', 'desc')
+    .onSnapshot(snap => {
+      todos = snap.docs.map(d => d.data());
+      renderTodoList();
+    }, err => {
+      console.error('Firestore todos error:', err);
+    });
 }
 
-function loadTodos() {
-  try { todos = JSON.parse(localStorage.getItem(TODO_KEY) || '[]'); }
-  catch { todos = []; }
+function stopListeners() {
+  _unsubProducts?.();
+  _unsubTodos?.();
+  _unsubProducts = null;
+  _unsubTodos    = null;
 }
-function saveTodos() {
-  localStorage.setItem(TODO_KEY, JSON.stringify(todos));
+
+function showDbLoading(show) {
+  document.getElementById('db-loading')?.classList.toggle('hidden', !show);
+}
+
+/* ================================================================
+   FIRESTORE — PRODUCT WRITES
+================================================================ */
+async function fsSetProduct(product) {
+  await db.collection('products').doc(product.id).set(product);
+}
+
+async function fsUpdateProduct(id, fields) {
+  await db.collection('products').doc(id).update(fields);
+}
+
+async function fsDeleteProduct(id) {
+  await db.collection('products').doc(id).delete();
+}
+
+/* ================================================================
+   FIRESTORE — TODO WRITES
+================================================================ */
+async function fsSetTodo(todo) {
+  await db.collection('todos').doc(todo.id).set(todo);
+}
+
+async function fsUpdateTodo(id, fields) {
+  await db.collection('todos').doc(id).update(fields);
+}
+
+async function fsDeleteTodo(id) {
+  await db.collection('todos').doc(id).delete();
 }
 
 /* ================================================================
@@ -52,7 +133,11 @@ function doLogin(pw) {
   return false;
 }
 
-function doLogout() { sessionStorage.removeItem('etsy_db_auth'); showView('login'); }
+function doLogout() {
+  stopListeners();
+  sessionStorage.removeItem('etsy_db_auth');
+  showView('login');
+}
 
 /* ================================================================
    UTILITIES
@@ -67,17 +152,11 @@ function esc(str) {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-/**
- * Extract a readable product name from an Etsy listing URL.
- * e.g. https://www.etsy.com/listing/1755776629/custom-wooden-wedding-ceremony-round?...
- *   → "Custom Wooden Wedding Ceremony Round"
- */
 function extractNameFromEtsyUrl(url) {
   try {
     const u = new URL(url.trim());
     if (!u.hostname.includes('etsy.com')) return '';
     const parts = u.pathname.split('/').filter(Boolean);
-    // Expected path: /listing/{id}/{slug}
     if (parts[0] === 'listing' && parts.length >= 3) {
       return parts[2].split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
     }
@@ -102,7 +181,8 @@ function getVisibleProducts() {
     const q = state.searchQuery.toLowerCase();
     list = list.filter(p =>
       p.name.toLowerCase().includes(q) ||
-      p.tags.some(t => t.toLowerCase().includes(q))
+      p.tags.some(t => t.toLowerCase().includes(q)) ||
+      (p.notes || '').toLowerCase().includes(q)
     );
   }
 
@@ -126,10 +206,7 @@ function showView(view) {
   document.getElementById('login-screen').classList.toggle('hidden', view !== 'login');
   document.getElementById('app').classList.toggle('hidden', view !== 'app');
   if (view === 'app') {
-    loadData();
-    loadTodos();
-    renderApp();
-    renderTodoList();
+    startListeners();
   }
 }
 
@@ -216,7 +293,6 @@ function renderActiveChips() {
   container.querySelectorAll('.active-chip-x').forEach(btn => {
     btn.addEventListener('click', () => {
       state.activeFilters = state.activeFilters.filter(t => t !== btn.dataset.tag);
-      // Uncheck in the open menu if visible
       const cb = document.querySelector(`#filter-menu-list input[data-tag="${CSS.escape(btn.dataset.tag)}"]`);
       if (cb) cb.checked = false;
       updateFilterBadge();
@@ -235,7 +311,6 @@ function renderProductGrid() {
   const total    = state.products.filter(p => !!p.archived === state.showArchived).length;
   const countEl  = document.getElementById('result-count');
 
-  // Result count
   const isFiltered = state.searchQuery || state.activeFilters.length > 0;
   if (total === 0) {
     countEl.textContent = '';
@@ -297,7 +372,7 @@ function renderCard(p) {
         <h3 class="card-name">${esc(p.name)}</h3>
         <div class="card-tags">${p.tags.map(t => `<span class="tag-chip-sm">${esc(t)}</span>`).join('')}</div>
         <div class="card-meta">
-          <span class="card-sup-ct">${sc} supplier${sc !== 1 ? 's' : ''}</span>
+          <span class="card-sup-ct">${sc} supplier${sc !== 1 ? 's' : ''}${p.notes ? ' · <span class="note-dot" title="Has notes">✎</span>' : ''}</span>
           ${p.etsyUrl ? `<a href="${esc(p.etsyUrl)}" target="_blank" rel="noopener noreferrer" class="etsy-lnk" onclick="event.stopPropagation()">Etsy ↗</a>` : ''}
         </div>
       </div>
@@ -334,9 +409,10 @@ function renderCard(p) {
 /* ================================================================
    PRODUCT CRUD
 ================================================================ */
-function createProduct({ name, etsyUrl, imageUrl, tags }) {
+function createProduct({ name, etsyUrl, imageUrl, tags, notes }) {
   return {
     id: uid(), name, etsyUrl, imageUrl, tags,
+    notes: notes || '',
     starred: false, archived: false, createdAt: Date.now(),
     supplierTable: {
       columns: DEFAULT_COLS.map(n => ({ id: uid(), name: n })),
@@ -345,8 +421,8 @@ function createProduct({ name, etsyUrl, imageUrl, tags }) {
   };
 }
 
-function openAddProduct()      { state.editingId = null; openProductModal(null); }
-function openEditProduct(id)   { state.editingId = id;   openProductModal(state.products.find(p => p.id === id)); }
+function openAddProduct()    { state.editingId = null; openProductModal(null); }
+function openEditProduct(id) { state.editingId = id;   openProductModal(state.products.find(p => p.id === id)); }
 
 function openProductModal(product) {
   const isEdit = !!product;
@@ -355,6 +431,7 @@ function openProductModal(product) {
   document.getElementById('pm-url').value          = product?.etsyUrl  ?? '';
   document.getElementById('pm-name').value         = product?.name     ?? '';
   document.getElementById('pm-image').value        = product?.imageUrl ?? '';
+  document.getElementById('pm-notes').value        = product?.notes    ?? '';
   document.getElementById('pm-url-status').classList.add('hidden');
   updateImgPreview(product?.imageUrl ?? '');
   renderTagsInput(document.getElementById('pm-tags'), product?.tags ?? []);
@@ -362,7 +439,7 @@ function openProductModal(product) {
   requestAnimationFrame(() => document.getElementById('pm-name').focus());
 }
 
-function saveProduct(e) {
+async function saveProduct(e) {
   e.preventDefault();
   const nameEl = document.getElementById('pm-name');
   const name   = nameEl.value.trim();
@@ -370,38 +447,36 @@ function saveProduct(e) {
 
   const etsyUrl  = document.getElementById('pm-url').value.trim();
   const imageUrl = document.getElementById('pm-image').value.trim();
+  const notes    = document.getElementById('pm-notes').value.trim();
   const tagsCont = document.getElementById('pm-tags');
   let tags       = getTagsFromContainer(tagsCont);
   const pending  = tagsCont.querySelector('#tag-input')?.value.trim().toLowerCase();
   if (pending && !tags.includes(pending)) tags = [...tags, pending];
 
-  if (state.editingId) {
-    const p = state.products.find(x => x.id === state.editingId);
-    if (p) Object.assign(p, { name, etsyUrl, imageUrl, tags });
-  } else {
-    state.products.push(createProduct({ name, etsyUrl, imageUrl, tags }));
-  }
-
-  saveData();
   closeModal('product-modal');
-  renderApp();
+
+  if (state.editingId) {
+    await fsUpdateProduct(state.editingId, { name, etsyUrl, imageUrl, tags, notes });
+  } else {
+    await fsSetProduct(createProduct({ name, etsyUrl, imageUrl, tags, notes }));
+  }
+  // renderApp() fired by onSnapshot
 }
 
-function toggleStar(id) {
+async function toggleStar(id) {
   const p = state.products.find(x => x.id === id);
-  if (p) { p.starred = !p.starred; saveData(); renderApp(); }
+  if (p) await fsUpdateProduct(id, { starred: !p.starred });
 }
 
-function toggleArchive(id) {
+async function toggleArchive(id) {
   const p = state.products.find(x => x.id === id);
-  if (p) { p.archived = !p.archived; saveData(); renderApp(); }
+  if (p) await fsUpdateProduct(id, { archived: !p.archived });
 }
 
 function confirmDeleteProduct(id) {
   const p = state.products.find(x => x.id === id);
-  openConfirm(`Delete "${p?.name}"? This cannot be undone.`, () => {
-    state.products = state.products.filter(x => x.id !== id);
-    saveData(); renderApp();
+  openConfirm(`Delete "${p?.name}"? This cannot be undone.`, async () => {
+    await fsDeleteProduct(id);
   });
 }
 
@@ -469,7 +544,11 @@ function openDetail(id) {
   state.detailId = id;
   const p = state.products.find(x => x.id === id);
   if (!p) return;
+  renderDetailContent(p);
+  document.getElementById('detail-modal').classList.remove('hidden');
+}
 
+function renderDetailContent(p) {
   document.getElementById('detail-name').textContent = p.name;
   document.getElementById('detail-img').innerHTML = p.imageUrl
     ? `<img src="${esc(p.imageUrl)}" alt="${esc(p.name)}" onerror="this.parentElement.innerHTML='<div class=\\'no-thumb\\'>📷</div>'">`
@@ -478,8 +557,17 @@ function openDetail(id) {
   document.getElementById('detail-link').innerHTML = p.etsyUrl
     ? `<a href="${esc(p.etsyUrl)}" target="_blank" rel="noopener noreferrer">View on Etsy ↗</a>` : '';
 
+  // Notes section
+  const notesSection = document.getElementById('detail-notes-section');
+  const notesEl      = document.getElementById('detail-notes-text');
+  if (p.notes && p.notes.trim()) {
+    notesEl.textContent = p.notes;
+    notesSection.classList.remove('hidden');
+  } else {
+    notesSection.classList.add('hidden');
+  }
+
   renderSupTable(p);
-  document.getElementById('detail-modal').classList.remove('hidden');
 }
 
 /* ================================================================
@@ -541,19 +629,15 @@ function renderSupTable(p) {
 function attachTableEvents(container, p) {
   const table = p.supplierTable;
 
-  // ── Rename column (double-click) ──
   container.querySelectorAll('.col-head-name').forEach(span => {
     span.addEventListener('dblclick', () => {
       const colId = span.closest('th').dataset.colId;
       const col   = table.columns.find(c => c.id === colId);
       if (!col) return;
       const inp = document.createElement('input');
-      inp.type      = 'text';
-      inp.className = 'col-rename-inp';
-      inp.value     = col.name;
-      span.replaceWith(inp);
-      inp.focus(); inp.select();
-      const commit = () => { col.name = inp.value.trim() || col.name; saveData(); renderSupTable(p); };
+      inp.type = 'text'; inp.className = 'col-rename-inp'; inp.value = col.name;
+      span.replaceWith(inp); inp.focus(); inp.select();
+      const commit = () => { col.name = inp.value.trim() || col.name; fsUpdateProduct(p.id, { supplierTable: table }); renderSupTable(p); };
       inp.addEventListener('blur', commit);
       inp.addEventListener('keydown', e => {
         if (e.key === 'Enter')  { e.preventDefault(); commit(); }
@@ -562,27 +646,24 @@ function attachTableEvents(container, p) {
     });
   });
 
-  // ── Delete column ──
   container.querySelectorAll('.col-del-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       if (table.columns.length <= 1) return;
       openConfirm('Delete this column and all data in it?', () => {
         table.columns = table.columns.filter(c => c.id !== btn.dataset.colId);
         table.rows.forEach(r => delete r.cells[btn.dataset.colId]);
-        saveData(); renderSupTable(p);
+        fsUpdateProduct(p.id, { supplierTable: table }); renderSupTable(p);
       });
     });
   });
 
-  // ── Delete row ──
   container.querySelectorAll('.row-del-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       table.rows = table.rows.filter(r => r.id !== btn.dataset.rowId);
-      saveData(); renderSupTable(p);
+      fsUpdateProduct(p.id, { supplierTable: table }); renderSupTable(p);
     });
   });
 
-  // ── Cell click → edit ──
   container.querySelectorAll('.t-cell').forEach(cell => {
     cell.addEventListener('click', e => {
       e.stopPropagation();
@@ -591,9 +672,7 @@ function attachTableEvents(container, p) {
       cell.classList.add('editing');
       const disp = cell.querySelector('.cell-text');
       const inp  = cell.querySelector('.cell-inp');
-      disp.classList.add('hidden');
-      inp.classList.remove('hidden');
-      inp.focus();
+      disp.classList.add('hidden'); inp.classList.remove('hidden'); inp.focus();
       const len = inp.value.length; inp.setSelectionRange(len, len);
     });
   });
@@ -622,21 +701,19 @@ function attachTableEvents(container, p) {
     });
   });
 
-  // ── Add row ──
   document.getElementById('add-row-btn').addEventListener('click', () => {
     const row = { id: uid(), cells: {} };
     table.columns.forEach(col => { row.cells[col.id] = ''; });
     table.rows.push(row);
-    saveData(); renderSupTable(p);
+    fsUpdateProduct(p.id, { supplierTable: table }); renderSupTable(p);
     setTimeout(() => container.querySelector('tbody tr:last-child .t-cell')?.click(), 30);
   });
 
-  // ── Add column ──
   document.getElementById('add-col-btn').addEventListener('click', () => {
     const col = { id: uid(), name: 'New Column' };
     table.columns.push(col);
     table.rows.forEach(r => { r.cells[col.id] = ''; });
-    saveData(); renderSupTable(p);
+    fsUpdateProduct(p.id, { supplierTable: table }); renderSupTable(p);
     setTimeout(() => {
       container.querySelector(`th[data-col-id="${col.id}"] .col-head-name`)
         ?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
@@ -655,7 +732,7 @@ function commitCell(cell, p) {
   disp.classList.remove('hidden');
   inp.classList.add('hidden');
   cell.classList.remove('editing');
-  saveData();
+  fsUpdateProduct(p.id, { supplierTable: p.supplierTable }); // fire & forget
 }
 
 /* ================================================================
@@ -667,16 +744,13 @@ function openConfirm(msg, onOk, opts = {}) {
   _confirmCb = onOk;
   document.getElementById('confirm-msg').textContent = msg;
   const ok = document.getElementById('confirm-ok');
-  ok.textContent  = opts.label ?? 'Delete';
-  ok.className    = opts.isAlert ? 'btn-blk' : 'btn-danger';
+  ok.textContent = opts.label ?? 'Delete';
+  ok.className   = opts.isAlert ? 'btn-blk' : 'btn-danger';
   document.getElementById('confirm-cancel').classList.toggle('hidden', !!opts.isAlert);
   document.getElementById('confirm-dialog').classList.remove('hidden');
   ok.focus();
 }
 
-/* ================================================================
-   MODAL HELPERS
-================================================================ */
 function closeModal(id) { document.getElementById(id)?.classList.add('hidden'); }
 
 /* ================================================================
@@ -700,32 +774,35 @@ function renderTodoList() {
     </div>`).join('');
 
   list.querySelectorAll('.todo-check-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const t = todos.find(x => x.id === btn.dataset.id);
-      if (t) { t.done = !t.done; saveTodos(); renderTodoList(); }
+      if (t) await fsUpdateTodo(t.id, { done: !t.done });
     });
   });
   list.querySelectorAll('.todo-del-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      todos = todos.filter(x => x.id !== btn.dataset.id);
-      saveTodos(); renderTodoList();
+    btn.addEventListener('click', async () => {
+      await fsDeleteTodo(btn.dataset.id);
     });
   });
 }
 
-function addTodo(text) {
+async function addTodo(text) {
   if (!text.trim()) return false;
-  todos.unshift({ id: uid(), text: text.trim(), done: false });
-  saveTodos(); renderTodoList();
+  const t = { id: uid(), text: text.trim(), done: false, createdAt: Date.now() };
+  await fsSetTodo(t);
   return true;
 }
+
+/* ================================================================
+   AUTH
+================================================================ */
+function isAuthed() { return sessionStorage.getItem('etsy_db_auth') === '1'; }
 
 /* ================================================================
    BOOTSTRAP
 ================================================================ */
 document.addEventListener('DOMContentLoaded', () => {
 
-  // ── Auth ──
   if (isAuthed()) showView('app');
   else            showView('login');
 
@@ -770,37 +847,25 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Search ──
   const searchInput = document.getElementById('search-input');
   const searchClear = document.getElementById('search-clear');
-
   searchInput.addEventListener('input', () => {
     state.searchQuery = searchInput.value;
     searchClear.classList.toggle('hidden', !searchInput.value);
     renderProductGrid();
   });
-
   searchClear.addEventListener('click', () => {
-    searchInput.value = '';
-    state.searchQuery = '';
-    searchClear.classList.add('hidden');
-    searchInput.focus();
-    renderProductGrid();
+    searchInput.value = ''; state.searchQuery = '';
+    searchClear.classList.add('hidden'); searchInput.focus(); renderProductGrid();
   });
 
   // ── Filter ──
   document.getElementById('filter-btn').addEventListener('click', e => {
-    e.stopPropagation();
-    toggleFilterMenu();
+    e.stopPropagation(); toggleFilterMenu();
   });
-
   document.getElementById('filter-clear-btn').addEventListener('click', () => {
-    state.activeFilters = [];
-    closeFilterMenu();
-    renderApp();
+    state.activeFilters = []; closeFilterMenu(); renderApp();
   });
-
   document.addEventListener('click', e => {
-    if (filterMenuOpen && !document.getElementById('filter-anchor').contains(e.target)) {
-      closeFilterMenu();
-    }
+    if (filterMenuOpen && !document.getElementById('filter-anchor').contains(e.target)) closeFilterMenu();
   });
 
   // ── Product Modal ──
@@ -808,45 +873,33 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('pm-close').addEventListener('click',  () => closeModal('product-modal'));
   document.getElementById('pm-cancel').addEventListener('click', () => closeModal('product-modal'));
 
-  // Auto-extract name when Etsy URL is pasted / typed
   document.getElementById('pm-url').addEventListener('input', e => {
     const url = e.target.value.trim();
     if (!url.includes('etsy.com/listing/')) return;
-    const name     = extractNameFromEtsyUrl(url);
+    const name      = extractNameFromEtsyUrl(url);
     const nameField = document.getElementById('pm-name');
     if (name && (!nameField.value || nameField.dataset.autoFilled === '1')) {
-      nameField.value            = name;
-      nameField.dataset.autoFilled = '1';
+      nameField.value = name; nameField.dataset.autoFilled = '1';
     }
   });
 
-  // Manual Extract button
   document.getElementById('pm-extract-btn').addEventListener('click', () => {
     const url    = document.getElementById('pm-url').value.trim();
     const status = document.getElementById('pm-url-status');
     if (!url) { document.getElementById('pm-url').focus(); return; }
-
     const name = extractNameFromEtsyUrl(url);
     if (name) {
-      document.getElementById('pm-name').value             = name;
+      document.getElementById('pm-name').value = name;
       document.getElementById('pm-name').dataset.autoFilled = '1';
-      status.textContent   = '✓ Name extracted from URL';
-      status.style.color   = '#2A9D5C';
-      status.classList.remove('hidden');
+      status.textContent = '✓ Name extracted from URL'; status.style.color = '#2A9D5C';
     } else {
-      status.textContent   = '⚠ Could not extract name — please enter manually.';
-      status.style.color   = '#CC0000';
-      status.classList.remove('hidden');
+      status.textContent = '⚠ Could not extract name — enter manually.'; status.style.color = '#CC0000';
     }
+    status.classList.remove('hidden');
     setTimeout(() => status.classList.add('hidden'), 3500);
   });
 
-  // Clear auto-fill flag when user manually edits name
-  document.getElementById('pm-name').addEventListener('input', function () {
-    delete this.dataset.autoFilled;
-  });
-
-  // Live image preview
+  document.getElementById('pm-name').addEventListener('input', function () { delete this.dataset.autoFilled; });
   document.getElementById('pm-image').addEventListener('input', e => updateImgPreview(e.target.value.trim()));
 
   // ── Detail Modal ──
@@ -861,7 +914,7 @@ document.addEventListener('DOMContentLoaded', () => {
     _confirmCb = null; closeModal('confirm-dialog');
   });
 
-  // ── Backdrop clicks close modals ──
+  // ── Backdrop clicks ──
   document.querySelectorAll('.modal').forEach(modal => {
     modal.addEventListener('click', e => {
       if (e.target !== modal) return;
@@ -875,14 +928,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // ── ESC key ──
+  // ── ESC ──
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
-      if (filterMenuOpen)                                                                    { closeFilterMenu(); return; }
-      if (!document.getElementById('confirm-dialog').classList.contains('hidden'))           { closeModal('confirm-dialog'); _confirmCb = null; }
-      else if (!document.getElementById('detail-modal').classList.contains('hidden'))        { closeModal('detail-modal'); }
-      else if (!document.getElementById('product-modal').classList.contains('hidden'))       { closeModal('product-modal'); }
-      else if (document.getElementById('todo-panel').classList.contains('open'))             { closeTodoPanel(); }
+      if (filterMenuOpen)                                                                 { closeFilterMenu(); return; }
+      if (!document.getElementById('confirm-dialog').classList.contains('hidden'))       { closeModal('confirm-dialog'); _confirmCb = null; }
+      else if (!document.getElementById('detail-modal').classList.contains('hidden'))    { closeModal('detail-modal'); }
+      else if (!document.getElementById('product-modal').classList.contains('hidden'))   { closeModal('product-modal'); }
+      else if (document.getElementById('todo-panel').classList.contains('open'))         { closeTodoPanel(); }
     }
   });
 
@@ -893,8 +946,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const todoInput = document.getElementById('todo-input');
 
   function closeTodoPanel() {
-    todoPanel.classList.remove('open');
-    todoBtn.classList.remove('active');
+    todoPanel.classList.remove('open'); todoBtn.classList.remove('active');
   }
 
   todoBtn.addEventListener('click', () => {
@@ -906,12 +958,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   todoClose.addEventListener('click', closeTodoPanel);
 
-  todoInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { if (addTodo(todoInput.value)) todoInput.value = ''; }
+  todoInput.addEventListener('keydown', async e => {
+    if (e.key === 'Enter') { if (await addTodo(todoInput.value)) todoInput.value = ''; }
   });
 });
 
-/* Shake animation (login error) */
+/* Shake animation */
 const _style = document.createElement('style');
 _style.textContent = `@keyframes shake {
   0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)}
